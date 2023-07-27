@@ -53,14 +53,15 @@ final class File implements FileInterface
     public function putContents(string $contents, int $flags = 0)
     {
         $this->activate();
-        return new Promise(function (callable $resolve) use ($contents, $flags): void {
+        $append = (($flags & \FILE_APPEND) == \FILE_APPEND);
+        return new Promise(function (callable $resolve) use ($contents, $flags, $append): void {
             uv_fs_open(
                 $this->uvLoop,
                 $this->path . DIRECTORY_SEPARATOR . $this->name,
-                (($flags & \FILE_APPEND) == \FILE_APPEND) ? UV::O_RDWR | UV::O_CREAT | UV::O_APPEND : UV::O_RDWR | UV::O_CREAT,
+                $append ? UV::O_RDWR | UV::O_CREAT | UV::O_APPEND : UV::O_RDWR | UV::O_CREAT | UV::O_TRUNC,
                 0644,
-                function ($fileDescriptor) use ($resolve, $contents, $flags): void {
-                    uv_fs_write($this->uvLoop, $fileDescriptor, $contents, 0, function ($fileDescriptor, int $bytesWritten) use ($resolve): void {
+                function ($fileDescriptor) use ($resolve, $contents, $flags, $append): void {
+                    uv_fs_write($this->uvLoop, $fileDescriptor, $contents, $append ? -1 : 0, function ($fileDescriptor, int $bytesWritten) use ($resolve): void {
                         $resolve($bytesWritten);
                         uv_fs_close($this->uvLoop, $fileDescriptor, function () {
                             $this->deactivate();
